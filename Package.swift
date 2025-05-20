@@ -3,6 +3,10 @@
 
 import PackageDescription
 
+let longhairCxxSettings: [CXXSetting] = [
+    .define("GF256_TARGET_MOBILE"),
+]
+
 let package = Package(
     name: "swift-longhair",
     products: [
@@ -19,16 +23,12 @@ let package = Package(
           "README.md",
         ],
         publicHeadersPath: ".",
-        cxxSettings: [
-          .define("GF256_TARGET_MOBILE"),
-        ],
-        
+        cxxSettings: longhairCxxSettings
       ),
-      .testTarget(name: "LonghairTests",
+      .testTarget(
+        name: "LonghairTests",
         dependencies: ["CLonghair"],
-        cxxSettings: [
-          .define("GF256_TARGET_MOBILE"),
-        ],
+        cxxSettings: longhairCxxSettings,
         swiftSettings: [.interoperabilityMode(.Cxx)]
       ),
     ],
