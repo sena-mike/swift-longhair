@@ -6,26 +6,30 @@ import PackageDescription
 let package = Package(
     name: "swift-longhair",
     products: [
+      // .library(name: "Longhair", targets: ["Longhair"]),
     ],
     targets: [
+      // .target(name: "Longhair", dependencies: ["CLonghair"]),
       .target(
         name: "CLonghair",
         exclude: [
+          "docs",
+          "tests",
           "CMakeLists.txt",
           "README.md",
         ],
-        sources: [
-          "cauchy_256.cpp",
-          "cauchy_256.h",
-          "gf256.cpp",
-          "gf256.h",
-          "SiameseTools.cpp",
-          "SiameseTools.h"
-        ],
         publicHeadersPath: ".",
-        cSettings: [
+        cxxSettings: [
           .define("GF256_TARGET_MOBILE"),
-        ]
-      )
-    ]
+        ],
+        
+      ),
+      .testTarget(name: "LonghairTests",
+        dependencies: ["CLonghair"],
+        cxxSettings: [
+          .define("GF256_TARGET_MOBILE"),
+        ],
+        swiftSettings: [.interoperabilityMode(.Cxx)]
+      ),
+    ],
 )
