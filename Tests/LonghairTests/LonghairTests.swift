@@ -10,17 +10,27 @@ import Testing
   }
 }
 
-@Test func verifyEncode() throws {
-  let source = Data(repeating: 0xFF, count: 1024)
-  let dataBlocks = generateDataBlocks(from: source, blockSize: 128)
+@Test func verifyLosslessTransferDoesDecodeToOriginal() throws {
+  let sources = [Data(repeating: 0xFF, count: 1024), Data.random(size: 1024)]
+  for source in sources {
 
-  let recoveryBlocks = Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
+    // Slice up the source into equal sized blocks
+    let dataBlocks = generateDataBlocks(from: source, blockSize: 128)
+    // Convert to library format `Cauchy256.Block`, "row" is the index of the block in the source
+    let convertedBlocks = dataBlocks.enumerated().map {
+      Cauchy256.Block(data: $0.element, row: UInt8($0.offset))
+    }
+    // Compute the recovery blocks with Cauchy256
+    let recoveryBlocks = Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
 
-  let blocks = dataBlocks.enumerated().map { Cauchy256.Block(data: $0.element, row: UInt8($0.offset))}
-  let recoveryBlocks2 = recoveryBlocks.enumerated().map { Cauchy256.Block(data: $0.element.data, row: UInt8($0.offset + dataBlocks.count))}
-  let result = try Cauchy256.decode(blocks: blocks + recoveryBlocks2, recoveryBlockCount: Int32(recoveryBlocks.count))
+    // Verify we get the original data back even with lossless transmission
+    let result = try Cauchy256.decode(
+      blocks: convertedBlocks + recoveryBlocks,
+      recoveryBlockCount: Int32(recoveryBlocks.count)
+    )
 
-  #expect(source == result)
+    #expect(source == result)
+  }
 }
 
 @Test func verifyDecodeRecoversSingleMissingBlock() throws {
