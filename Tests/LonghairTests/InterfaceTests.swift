@@ -33,6 +33,7 @@ import Testing
   let result = try Cauchy256.decode(blocks: blocks + recoveryBlocks2, recoveryBlockCount: Int32(recoveryBlocks.count))
 
   #expect(source == result)
+  #expect(source == result)
 }
 
 @Test func verifyDecodeRecoversSingleMissingBlock() throws {
@@ -52,6 +53,7 @@ import Testing
   #expect(blocks[3].data == nil)
   let result = try Cauchy256.decode(blocks: blocks + recoveryBlocks, recoveryBlockCount: Int32(recoveryBlocks.count))
 
+  #expect(source == result)
   #expect(source == result)
 }
 
@@ -127,14 +129,40 @@ import Testing
   #expect(source == result)
 }
 
-extension Data {
-    struct HexEncodingOptions: OptionSet {
-        let rawValue: Int
-        static let upperCase = HexEncodingOptions(rawValue: 1 << 0)
-    }
+@Test func stressDecodeRepeatedMemoryLeakTest() throws {
+  for _ in 0..<1_000 {
+    autoreleasepool {
+      let blockCount = 8
+      let recoveryCount = 2
+      let bytesPerBlock = 128
+      let totalBytes = blockCount * bytesPerBlock
+      let source = Data((0..<totalBytes).map { UInt8($0 & 0xFF) })
+      var dataBlocks = [Data]()
+      for i in stride(from: 0, to: source.count, by: bytesPerBlock) {
+        let start = source.index(source.startIndex, offsetBy: i)
+        let end = source.index(source.startIndex, offsetBy: i + bytesPerBlock)
+        dataBlocks.append(source[start..<end])
+      }
 
-    func hexEncodedString(options: HexEncodingOptions = []) -> String {
-        let format = options.contains(.upperCase) ? "%02hhX" : "%02hhx"
-        return self.map { String(format: format, $0) }.joined()
+      let recoveryBlocks = Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: recoveryCount)
+      let missingIndex = Int.random(in: 0..<blockCount)
+      let blocks = (0..<blockCount).map { idx in
+        Cauchy256.Block(data: idx == missingIndex ? nil : dataBlocks[idx], row: UInt8(idx))
+      }
+      let result = try! Cauchy256.decode(blocks: blocks + recoveryBlocks, recoveryBlockCount: Int32(recoveryCount))
+      #expect(source == result)
     }
+  }
+}
+
+extension Data {
+  struct HexEncodingOptions: OptionSet {
+    let rawValue: Int
+    static let upperCase = HexEncodingOptions(rawValue: 1 << 0)
+  }
+
+  func hexEncodedString(options: HexEncodingOptions = []) -> String {
+    let format = options.contains(.upperCase) ? "%02hhX" : "%02hhx"
+    return self.map { String(format: format, $0) }.joined()
+  }
 }

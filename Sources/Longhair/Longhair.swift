@@ -39,14 +39,14 @@ public enum Cauchy256 {
 
     let result = dataBlockPointers.withUnsafeMutableBufferPointer { pointerArray in
       recoveryBuffer.withUnsafeMutableBytes { recoveryRawBuffer in
-            return cauchy_256_encode(
-                Int32(dataBlocks.count),
-                Int32(recoveryBlockCount),
-                pointerArray.baseAddress!,
-                recoveryRawBuffer.baseAddress!,
-                Int32(bytesPerBlock)
-            )
-        }
+        return cauchy_256_encode(
+          Int32(dataBlocks.count),
+          Int32(recoveryBlockCount),
+          pointerArray.baseAddress!,
+          recoveryRawBuffer.baseAddress!,
+          Int32(bytesPerBlock)
+        )
+      }
     }
 
     precondition(result == 0)
