@@ -10,10 +10,15 @@ let longhairCxxSettings: [CXXSetting] = [
 let package = Package(
     name: "swift-longhair",
     products: [
-      // .library(name: "Longhair", targets: ["Longhair"]),
+      .library(name: "Longhair", targets: ["Longhair"]),
     ],
     targets: [
-      // .target(name: "Longhair", dependencies: ["CLonghair"]),
+      .target(
+        name: "Longhair", 
+        dependencies: ["CLonghair"], 
+        cxxSettings: longhairCxxSettings,
+        swiftSettings: [.interoperabilityMode(.Cxx)]
+      ),
       .target(
         name: "CLonghair",
         exclude: [
@@ -27,7 +32,7 @@ let package = Package(
       ),
       .testTarget(
         name: "LonghairTests",
-        dependencies: ["CLonghair"],
+        dependencies: ["CLonghair", "Longhair"],
         cxxSettings: longhairCxxSettings,
         swiftSettings: [.interoperabilityMode(.Cxx)]
       ),
