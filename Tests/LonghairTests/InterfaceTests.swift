@@ -74,6 +74,59 @@ import Testing
   #expect(source == result)
 }
 
+@Test func stressDecodeAllMissingCombinations() throws {
+  let blockCount = 8
+  let recoveryCount = 2
+  let bytesPerBlock = 128
+  let totalBytes = blockCount * bytesPerBlock
+  let source = Data((0..<totalBytes).map { UInt8($0 & 0xFF) })
+  var dataBlocks = [Data]()
+  for i in stride(from: 0, to: source.count, by: bytesPerBlock) {
+    let start = source.index(source.startIndex, offsetBy: i)
+    let end = source.index(source.startIndex, offsetBy: i + bytesPerBlock)
+    dataBlocks.append(source[start..<end])
+  }
+
+  let recoveryBlocks = Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: recoveryCount)
+  for missingIndex in 0..<blockCount {
+    let blocks = (0..<blockCount).map { idx in
+      Cauchy256.Block(data: idx == missingIndex ? nil : dataBlocks[idx], row: UInt8(idx))
+    }
+    let result1 = try Cauchy256.decode(blocks: blocks + recoveryBlocks, recoveryBlockCount: Int32(recoveryCount))
+    #expect(source == result1)
+  }
+  for i in 0..<(blockCount - 1) {
+    for j in (i + 1)..<blockCount {
+      let missing = Set([i, j])
+      let blocks = (0..<blockCount).map { idx in
+        Cauchy256.Block(data: missing.contains(idx) ? nil : dataBlocks[idx], row: UInt8(idx))
+      }
+      let result2 = try Cauchy256.decode(blocks: blocks + recoveryBlocks, recoveryBlockCount: Int32(recoveryCount))
+      #expect(source == result2)
+    }
+  }
+}
+
+@Test func verifyDecodeWithPermutedBlockOrder() throws {
+  let source = Data(repeating: 0xAB, count: 1024)
+  var dataBlocks = [Data]()
+  for i in stride(from: 0, to: source.count, by: 128) {
+    let start = source.index(source.startIndex, offsetBy: i)
+    let end = source.index(source.startIndex, offsetBy: i + 128)
+    dataBlocks.append(source[start..<end])
+  }
+
+  let recoveryBlocks = Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
+  let missingIndex = 5
+  let convertedBlocks = dataBlocks.enumerated().map { idx, blockData in
+    Cauchy256.Block(data: idx == missingIndex ? nil : blockData, row: UInt8(idx))
+  }
+
+  let permutedOrder = Array(convertedBlocks.reversed()) + recoveryBlocks.reversed()
+  let result = try Cauchy256.decode(blocks: permutedOrder, recoveryBlockCount: Int32(recoveryBlocks.count))
+  #expect(source == result)
+}
+
 extension Data {
     struct HexEncodingOptions: OptionSet {
         let rawValue: Int
