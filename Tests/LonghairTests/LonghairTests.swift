@@ -36,16 +36,26 @@ import Testing
 @Test func verifyDecodeRecoversSingleMissingBlock() throws {
   let sources = [Data(repeating: 0xFF, count: 1024), Data.random(size: 1024)]
   for source in sources {
+
+    // Slice up the source into equal sized blocks
     let dataBlocks = generateDataBlocks(from: source, blockSize: 128)
 
+    // Compute the recovery blocks with Cauchy256
     let recoveryBlocks = Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
+
+    // Convert to library format `Cauchy256.Block`, "row" is the index of the block in the source
     let missingIndex = 3
-    let blocks = dataBlocks.enumerated().map { idx, blockData in
+    let convertedBlocks = dataBlocks.enumerated().map { idx, blockData in
+      // Drop block at missingIndex
       Cauchy256.Block(data: idx == missingIndex ? nil : blockData, row: UInt8(idx))
     }
-    #expect(blocks[3].data == nil)
-    let result = try Cauchy256.decode(blocks: blocks + recoveryBlocks, recoveryBlockCount: Int32(recoveryBlocks.count))
 
+    // Even with a missing block (at index 3), we can still recover the original data
+    #expect(convertedBlocks[3].data == nil)
+    let result = try Cauchy256.decode(
+      blocks: convertedBlocks + recoveryBlocks,
+      recoveryBlockCount: Int32(recoveryBlocks.count)
+    )
     #expect(source == result)
   }
 }
