@@ -4,67 +4,45 @@ import Foundation
 import Testing
 
 @Test func verifyAPICompat() throws {
-  print(CAUCHY_256_VERSION)
+  print("CAUCHY_256_VERSION: \(CAUCHY_256_VERSION)")
   if _cauchy_256_init(CAUCHY_256_VERSION) != 0 {
     Issue.record("Cauchy 256 init failed")
   }
 }
 
-
 @Test func verifyEncode() throws {
   let source = Data(repeating: 0xFF, count: 1024)
-  var dataBlocks = [Data]()
-  // Break source into 8 equal sized blocks of 128 bytes
-  for i in stride(from: 0, to: source.count, by: 128) {
-    let start = source.index(source.startIndex, offsetBy: i)
-    let end = source.index(source.startIndex, offsetBy: i + 128)
-    let block = source[start..<end]
-    dataBlocks.append(block)
-  }
+  let dataBlocks = generateDataBlocks(from: source, blockSize: 128)
 
   let recoveryBlocks = Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
-
-  for block in recoveryBlocks {
-    print(String(describing: block.data?.hexEncodedString()))
-  }
 
   let blocks = dataBlocks.enumerated().map { Cauchy256.Block(data: $0.element, row: UInt8($0.offset))}
   let recoveryBlocks2 = recoveryBlocks.enumerated().map { Cauchy256.Block(data: $0.element.data, row: UInt8($0.offset + dataBlocks.count))}
   let result = try Cauchy256.decode(blocks: blocks + recoveryBlocks2, recoveryBlockCount: Int32(recoveryBlocks.count))
 
   #expect(source == result)
-  #expect(source == result)
 }
 
 @Test func verifyDecodeRecoversSingleMissingBlock() throws {
-  let source = Data(repeating: 0xFF, count: 1024)
-  var dataBlocks = [Data]()
-  for i in stride(from: 0, to: source.count, by: 128) {
-    let start = source.index(source.startIndex, offsetBy: i)
-    let end = source.index(source.startIndex, offsetBy: i + 128)
-    dataBlocks.append(source[start..<end])
-  }
+  let sources = [Data(repeating: 0xFF, count: 1024), Data.random(size: 1024)]
+  for source in sources {
+    let dataBlocks = generateDataBlocks(from: source, blockSize: 128)
 
-  let recoveryBlocks = Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
-  let missingIndex = 3
-  let blocks = dataBlocks.enumerated().map { idx, blockData in
-    Cauchy256.Block(data: idx == missingIndex ? nil : blockData, row: UInt8(idx))
-  }
-  #expect(blocks[3].data == nil)
-  let result = try Cauchy256.decode(blocks: blocks + recoveryBlocks, recoveryBlockCount: Int32(recoveryBlocks.count))
+    let recoveryBlocks = Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
+    let missingIndex = 3
+    let blocks = dataBlocks.enumerated().map { idx, blockData in
+      Cauchy256.Block(data: idx == missingIndex ? nil : blockData, row: UInt8(idx))
+    }
+    #expect(blocks[3].data == nil)
+    let result = try Cauchy256.decode(blocks: blocks + recoveryBlocks, recoveryBlockCount: Int32(recoveryBlocks.count))
 
-  #expect(source == result)
-  #expect(source == result)
+    #expect(source == result)
+  }
 }
 
 @Test func verifyDecodeRecoversTwoMissingBlocks() throws {
   let source = Data(repeating: 0xFF, count: 1024)
-  var dataBlocks = [Data]()
-  for i in stride(from: 0, to: source.count, by: 128) {
-    let start = source.index(source.startIndex, offsetBy: i)
-    let end = source.index(source.startIndex, offsetBy: i + 128)
-    dataBlocks.append(source[start..<end])
-  }
+  let dataBlocks = generateDataBlocks(from: source, blockSize: 128)
 
   let recoveryBlocks = Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
   let missingIndices: Set<Int> = [1, 4]
@@ -110,13 +88,8 @@ import Testing
 }
 
 @Test func verifyDecodeWithPermutedBlockOrder() throws {
-  let source = Data(repeating: 0xAB, count: 1024)
-  var dataBlocks = [Data]()
-  for i in stride(from: 0, to: source.count, by: 128) {
-    let start = source.index(source.startIndex, offsetBy: i)
-    let end = source.index(source.startIndex, offsetBy: i + 128)
-    dataBlocks.append(source[start..<end])
-  }
+  let source = Data(repeating: 0xFF, count: 1024)
+  let dataBlocks = generateDataBlocks(from: source, blockSize: 128)
 
   let recoveryBlocks = Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
   let missingIndex = 5
@@ -165,4 +138,18 @@ extension Data {
     let format = options.contains(.upperCase) ? "%02hhX" : "%02hhx"
     return self.map { String(format: format, $0) }.joined()
   }
+
+  static func random(size: Int) -> Data {
+    return Data((0..<size).map { _ in UInt8.random(in: 0...255) })
+  }
+}
+
+func generateDataBlocks(from source: Data, blockSize: Int) -> [Data] {
+  var dataBlocks = [Data]()
+  for i in stride(from: 0, to: source.count, by: blockSize) {
+    let start = source.index(source.startIndex, offsetBy: i)
+    let end = source.index(source.startIndex, offsetBy: i + blockSize)
+    dataBlocks.append(source[start..<end])
+  }
+  return dataBlocks
 }
