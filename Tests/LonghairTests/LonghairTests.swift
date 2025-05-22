@@ -143,6 +143,75 @@ import Testing
   }
 }
 
+@Test func testEncodeNoBlocksProvided() throws {
+  #expect(throws: LonghairError.noBlocksProvided) {
+    try Cauchy256.encode(dataBlocks: [], recoveryBlockCount: 1)
+  }
+}
+
+@Test func testEncodeBlockSizeNotMultipleOf8() throws {
+  let data = Data(repeating: 0, count: 7)
+  #expect(throws: LonghairError.invalidBlockSize) {
+    try Cauchy256.encode(dataBlocks: [data], recoveryBlockCount: 1)
+  }
+}
+
+@Test func testEncodeInconsistentBlockSizes() throws {
+  let data1 = Data(repeating: 0, count: 8)
+  let data2 = Data(repeating: 0, count: 16)
+  #expect(throws: LonghairError.inconsistentBlockSizes) {
+    try Cauchy256.encode(dataBlocks: [data1, data2], recoveryBlockCount: 0)
+  }
+}
+
+@Test func testEncodeTooManyBlocks() throws {
+  let block = Data(repeating: 0, count: 8)
+  let dataBlocks = Array(repeating: block, count: 256)
+  #expect(throws: LonghairError.tooManyBlocks) {
+    try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 1)
+  }
+}
+
+@Test func testDecodeNoBlocks() throws {
+  #expect(throws: LonghairError.invalidBlockCount) {
+    try Cauchy256.decode(blocks: [], recoveryBlockCount: 0)
+  }
+}
+
+@Test func testDecodeNegativeRecoveryCount() throws {
+  let data = Data(repeating: 0, count: 8)
+  let block = Cauchy256.Block(data: data, row: 0)
+  #expect(throws: LonghairError.invalidBlockCount) {
+    try Cauchy256.decode(blocks: [block], recoveryBlockCount: -1)
+  }
+}
+
+@Test func testDecodeBlockCountMismatch() throws {
+  let data = Data(repeating: 0, count: 8)
+  let block = Cauchy256.Block(data: data, row: 0)
+  #expect(throws: LonghairError.invalidBlockCount) {
+    try Cauchy256.decode(blocks: [block], recoveryBlockCount: 2)
+  }
+}
+
+@Test func testDecodeInvalidBlockSize() throws {
+  let data1 = Data(repeating: 0, count: 8)
+  let data2 = Data(repeating: 0, count: 16)
+  let blocks = [Cauchy256.Block(data: data1, row: 0), Cauchy256.Block(data: data2, row: 1)]
+
+  #expect(throws: LonghairError.inconsistentBlockSizes) {
+    try Cauchy256.decode(blocks: blocks, recoveryBlockCount: 0)
+  }
+}
+
+@Test func testDecodeBlockSizeNotMultipleOf8() throws {
+  let data = Data(repeating: 0, count: 7)
+  let block = Cauchy256.Block(data: data, row: 0)
+  #expect(throws: LonghairError.invalidBlockSize) {
+    try Cauchy256.decode(blocks: [block], recoveryBlockCount: 0)
+  }
+}
+
 extension Data {
   struct HexEncodingOptions: OptionSet {
     let rawValue: Int

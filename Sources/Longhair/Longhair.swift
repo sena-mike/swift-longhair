@@ -9,6 +9,14 @@ public enum LonghairError: Error {
   case noBlocksProvided
   case noBlocksContainData
   case notEnoughtBlocksToDecode
+
+  // Invalid parameters for encoding
+  case invalidBlockSize
+  case inconsistentBlockSizes
+  case tooManyBlocks
+
+  // Invalid parameters for decoding
+  case invalidBlockCount
 }
 
 public enum Cauchy256 {
@@ -51,7 +59,11 @@ public enum Cauchy256 {
   ///   - recoveryBlockCount: The number of recovery blocks to generate.
   /// - Returns: An array of `Block` representing the original data blocks followed by the recovery blocks.
   ///            Recovery blocks start at row index equal to `dataBlocks.count`.
-  /// - Throws: `LonghairError.encodingFailed` if the C API encoding fails.
+  /// - Throws: `LonghairError.noBlocksProvided` if `dataBlocks` is empty.
+  ///           `LonghairError.invalidBlockSize` if block size is not a multiple of 8.
+  ///           `LonghairError.inconsistentBlockSizes` if input blocks are not the same size.
+  ///           `LonghairError.tooManyBlocks` if `dataBlocks.count + recoveryBlockCount` exceeds 256.
+  ///           `LonghairError.encodingFailed` if the C API encoding fails.
   public static func encode(
     dataBlocks: [Data],
     recoveryBlockCount: Int
@@ -63,13 +75,13 @@ public enum Cauchy256 {
     guard !dataBlocks.isEmpty else { throw LonghairError.noBlocksProvided }
 
     let bytesPerBlock = dataBlocks[0].count
-    precondition(bytesPerBlock % 8 == 0, "Bytes per block must be a multiple of 8")
-    precondition(dataBlocks.allSatisfy({ $0.count == bytesPerBlock }), "All blocks must be of the same size")
+    guard bytesPerBlock % 8 == 0 else { throw LonghairError.invalidBlockSize }
+    guard dataBlocks.allSatisfy({ $0.count == bytesPerBlock }) else { throw LonghairError.inconsistentBlockSizes }
 
     // Allocate recovery blocks
     var recoveryBuffer = Data(count: recoveryBlockCount * bytesPerBlock)
 
-    precondition(dataBlocks.count + recoveryBlockCount <= 256)
+    guard dataBlocks.count + recoveryBlockCount <= 256 else { throw LonghairError.tooManyBlocks }
 
     var dataBlockPointers: [UnsafePointer<UInt8>?] = dataBlocks.map {
       $0.withUnsafeBytes { $0.bindMemory(to: UInt8.self).baseAddress }
@@ -105,16 +117,28 @@ public enum Cauchy256 {
     return originalBlocks + recoveryBlocks
   }
 
+  /// Decodes the given blocks and reconstructs the original data using the Cauchy 256 algorithm.
+  ///
+  /// - Parameters:
+  ///   - blocks: An array of `Block` objects containing original and/or recovery data blocks.
+  ///   - recoveryBlockCount: The number of recovery blocks provided.
+  /// - Returns: A `Data` object containing the reconstructed original data.
+  /// - Throws: `LonghairError.invalidBlockCount` if `blocks.count` or `recoveryBlockCount` parameters are invalid.
+  ///           `LonghairError.noBlocksContainData` if none of the blocks contain data.
+  ///           `LonghairError.notEnoughtBlocksToDecode` if there are not enough blocks with data to decode.
+  ///           `LonghairError.invalidBlockSize` if block sizes are not multiples of 8.
+  ///           `LonghairError.inconsistentBlockSizes` if non-nil blocks have mismatched sizes.
+  ///           `LonghairError.decodingFailed` if the C API decoding fails.
   public static func decode(blocks: [Block], recoveryBlockCount: Int32) throws -> Data {
     _ = _initializer
 
     let m = recoveryBlockCount
     let total = blocks.count
     let k = Int32(total) - m
-    precondition(k > 0, "must pass at least one block")
-    precondition(m >= 0, "recoveryBlockCount must be non-negative")
-    precondition(total == Int(k) + Int(m), "blocks.count must equal k + m")
-    precondition(k + m <= 256, "k + m must be ≤ 256")
+    guard k > 0 else { throw LonghairError.invalidBlockCount }
+    guard m >= 0 else { throw LonghairError.invalidBlockCount }
+    guard total == Int(k) + Int(m) else { throw LonghairError.invalidBlockCount }
+    guard k + m <= 256 else { throw LonghairError.invalidBlockCount }
 
     guard let firstData = blocks.first(where: { $0.data != nil })?.data else {
       throw LonghairError.noBlocksContainData
@@ -123,11 +147,10 @@ public enum Cauchy256 {
       throw LonghairError.notEnoughtBlocksToDecode
     }
     let bytesPerBlock = firstData.count
-    precondition(bytesPerBlock % 8 == 0, "bytesPerBlock must be a multiple of 8")
-    precondition(
-      blocks.allSatisfy({ $0.data?.count == bytesPerBlock || $0.data == nil }),
-      "all non-nil blocks must have the same size"
-    )
+    guard bytesPerBlock % 8 == 0 else { throw LonghairError.invalidBlockSize }
+    guard blocks.allSatisfy({ $0.data?.count == bytesPerBlock || $0.data == nil }) else {
+      throw LonghairError.inconsistentBlockSizes
+    }
 
     let blockCount = Int(k)
     var cBlocks = [CLonghair.Block](repeating: .init(data: nil, row: 0), count: blockCount)
