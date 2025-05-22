@@ -1,6 +1,16 @@
 private import CLonghair
 import Foundation
 
+public enum LonghairError: Error {
+  case encodingFailed
+  case decodingFailed
+
+  // The `dataBlocks` array is empty for encoding.
+  case noBlocksProvided
+  case noBlocksContainData
+  case notEnoughtBlocksToDecode
+}
+
 public enum Cauchy256 {
 
   /// This closure will run exactly once, the first time _initializer is touched.
@@ -15,18 +25,20 @@ public enum Cauchy256 {
   ///   - dataBlocks: An array of `Data` objects representing the original data blocks to be encoded.
   ///   - recoveryBlockCount: The number of recovery blocks to generate.
   /// - Returns: An array of `Block` representing the recovery blocks. The value of `block.row` will starts at `dataBlock.count`.
+  /// - Throws: `EncodeError.encodeFailed(code:)` if the C API encoding fails.
   public static func encode(
     dataBlocks: [Data],
     recoveryBlockCount: Int
-  ) -> [Block] {
-    // “touch” the initializer; safe to do from any thread/Task
+  ) throws -> [Block] {
+
+    // “touch” the initializer
     _ = _initializer
 
-    precondition(!dataBlocks.isEmpty)
+    guard !dataBlocks.isEmpty else { throw LonghairError.noBlocksProvided }
 
     let bytesPerBlock = dataBlocks[0].count
-    precondition(bytesPerBlock % 8 == 0)
-    precondition(dataBlocks.allSatisfy({ $0.count == bytesPerBlock }))
+    precondition(bytesPerBlock % 8 == 0, "Bytes per block must be a multiple of 8")
+    precondition(dataBlocks.allSatisfy({ $0.count == bytesPerBlock }), "All blocks must be of the same size")
 
     // Allocate recovery blocks
     var recoveryBuffer = Data(count: recoveryBlockCount * bytesPerBlock)
@@ -49,7 +61,9 @@ public enum Cauchy256 {
       }
     }
 
-    precondition(result == 0)
+    guard result == 0 else {
+      throw LonghairError.encodingFailed
+    }
 
     return (0..<recoveryBlockCount).map { blockIndex in
       let data = recoveryBuffer.subdata(
@@ -69,21 +83,6 @@ public enum Cauchy256 {
     }
   }
 
-  /// Decodes the original data blocks from a mix of data and recovery blocks using the Cauchy 256 algorithm.
-  ///
-  /// - Parameters:
-  ///   - blocks: An array of `Block` containing `k` original data blocks (some may have `.data == nil`)
-  ///     and `m` recovery blocks. Each block’s `row` must be set to the block index (0..<k for original,
-  ///     k..<k+m for recovery).
-  ///   - recoveryBlockCount: The number of recovery blocks in `blocks`.
-  /// - Throws: `DecodeError.missingData` if no block contains data;
-  ///           `DecodeError.decodeFailed(code:)` if the C API decode fails.
-  /// - Returns: A `Data` object containing the reconstructed original data concatenated in row order (0..<k).
-  public enum DecodeError: Error {
-    case missingData
-    case decodeFailed(code: Int32)
-  }
-
   public static func decode(blocks: [Block], recoveryBlockCount: Int32) throws -> Data {
     _ = _initializer
 
@@ -96,7 +95,10 @@ public enum Cauchy256 {
     precondition(k + m <= 256, "k + m must be ≤ 256")
 
     guard let firstData = blocks.first(where: { $0.data != nil })?.data else {
-      throw DecodeError.missingData
+      throw LonghairError.noBlocksContainData
+    }
+    guard blocks.count(where: { $0.data != nil}) >= (Int32(blocks.count) - recoveryBlockCount) else {
+      throw LonghairError.notEnoughtBlocksToDecode
     }
     let bytesPerBlock = firstData.count
     precondition(bytesPerBlock % 8 == 0, "bytesPerBlock must be a multiple of 8")
@@ -111,7 +113,7 @@ public enum Cauchy256 {
     var recoveryCount = 0
     var blockData = Data(count: blockCount * bytesPerBlock)
 
-    let resultCode: Int32 = blockData.withUnsafeMutableBytes { rawBuffer in
+    let result: Int32 = blockData.withUnsafeMutableBytes { rawBuffer in
       let basePtr = rawBuffer.baseAddress!.assumingMemoryBound(to: UInt8.self)
 
       for block in blocks {
@@ -137,8 +139,8 @@ public enum Cauchy256 {
         )
       }
     }
-    if resultCode != 0 {
-      throw DecodeError.decodeFailed(code: resultCode)
+    guard result == 0 else {
+      throw LonghairError.decodingFailed
     }
 
     var output = Data()
