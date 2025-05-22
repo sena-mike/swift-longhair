@@ -16,17 +16,13 @@ import Testing
 
     // Slice up the source into equal sized blocks
     let dataBlocks = generateDataBlocks(from: source, blockSize: 128)
-    // Convert to library format `Cauchy256.Block`, "row" is the index of the block in the source
-    let convertedBlocks = dataBlocks.enumerated().map {
-      Cauchy256.Block(data: $0.element, row: UInt8($0.offset))
-    }
-    // Compute the recovery blocks with Cauchy256
-    let recoveryBlocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
+    // Compute the original and recovery blocks with Cauchy256
+    let encodedBlocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
 
     // Verify we get the original data back even with lossless transmission
     let result = try Cauchy256.decode(
-      blocks: convertedBlocks + recoveryBlocks,
-      recoveryBlockCount: Int32(recoveryBlocks.count)
+      blocks: encodedBlocks,
+      recoveryBlockCount: 2
     )
 
     #expect(source == result)
@@ -40,21 +36,12 @@ import Testing
     // Slice up the source into equal sized blocks
     let dataBlocks = generateDataBlocks(from: source, blockSize: 128)
 
-    // Compute the recovery blocks with Cauchy256
-    let recoveryBlocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
-
-    // Convert to library format `Cauchy256.Block`, "row" is the index of the block in the source
-    let missingIndex = 3
-    let convertedBlocks = dataBlocks.enumerated().map { idx, blockData in
-      // Drop block at missingIndex
-      Cauchy256.Block(data: idx == missingIndex ? nil : blockData, row: UInt8(idx))
-    }
-
-    // Even with a missing block (at index 3), we can still recover the original data
-    #expect(convertedBlocks[3].data == nil)
+    var blocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
+    blocks[3].data = nil
+    #expect(blocks[3].data == nil)
     let result = try Cauchy256.decode(
-      blocks: convertedBlocks + recoveryBlocks,
-      recoveryBlockCount: Int32(recoveryBlocks.count)
+      blocks: blocks,
+      recoveryBlockCount: 2
     )
     #expect(source == result)
   }
@@ -64,16 +51,13 @@ import Testing
   let source = Data(repeating: 0xFF, count: 1024)
   let dataBlocks = generateDataBlocks(from: source, blockSize: 128)
 
-  let recoveryBlocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
+  var blocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
   let missingIndices: Set<Int> = [1, 4]
-  let enumeratedBlocks = dataBlocks.enumerated().map { idx, blockData in
-    Cauchy256.Block(data: missingIndices.contains(idx) ? nil : blockData, row: UInt8(idx))
-  }
+  for idx in missingIndices { blocks[idx].data = nil }
   let result = try Cauchy256.decode(
-    blocks: enumeratedBlocks + recoveryBlocks,
-    recoveryBlockCount: Int32(recoveryBlocks.count)
+    blocks: blocks,
+    recoveryBlockCount: 2
   )
-
   #expect(source == result)
 }
 
@@ -90,21 +74,19 @@ import Testing
     dataBlocks.append(source[start..<end])
   }
 
-  let recoveryBlocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: recoveryCount)
+  let encodedBlocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: recoveryCount)
   for missingIndex in 0..<blockCount {
-    let blocks = (0..<blockCount).map { idx in
-      Cauchy256.Block(data: idx == missingIndex ? nil : dataBlocks[idx], row: UInt8(idx))
-    }
-    let result1 = try Cauchy256.decode(blocks: blocks + recoveryBlocks, recoveryBlockCount: Int32(recoveryCount))
+    var blocks = encodedBlocks
+    blocks[missingIndex].data = nil
+    let result1 = try Cauchy256.decode(blocks: blocks, recoveryBlockCount: Int32(recoveryCount))
     #expect(source == result1)
   }
   for i in 0..<(blockCount - 1) {
     for j in (i + 1)..<blockCount {
-      let missing = Set([i, j])
-      let blocks = (0..<blockCount).map { idx in
-        Cauchy256.Block(data: missing.contains(idx) ? nil : dataBlocks[idx], row: UInt8(idx))
-      }
-      let result2 = try Cauchy256.decode(blocks: blocks + recoveryBlocks, recoveryBlockCount: Int32(recoveryCount))
+      var blocks = encodedBlocks
+      blocks[i].data = nil
+      blocks[j].data = nil
+      let result2 = try Cauchy256.decode(blocks: blocks, recoveryBlockCount: Int32(recoveryCount))
       #expect(source == result2)
     }
   }
@@ -114,14 +96,12 @@ import Testing
   let source = Data(repeating: 0xFF, count: 1024)
   let dataBlocks = generateDataBlocks(from: source, blockSize: 128)
 
-  let recoveryBlocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
+  var blocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
   let missingIndex = 5
-  let convertedBlocks = dataBlocks.enumerated().map { idx, blockData in
-    Cauchy256.Block(data: idx == missingIndex ? nil : blockData, row: UInt8(idx))
-  }
+  blocks[missingIndex].data = nil
 
-  let permutedOrder = Array(convertedBlocks.reversed()) + recoveryBlocks.reversed()
-  let result = try Cauchy256.decode(blocks: permutedOrder, recoveryBlockCount: Int32(recoveryBlocks.count))
+  let permutedOrder = Array(blocks.reversed())
+  let result = try Cauchy256.decode(blocks: permutedOrder, recoveryBlockCount: 2)
   #expect(source == result)
 }
 
@@ -140,12 +120,10 @@ import Testing
         dataBlocks.append(source[start..<end])
       }
 
-      let recoveryBlocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: recoveryCount)
+      var blocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: recoveryCount)
       let missingIndex = Int.random(in: 0..<blockCount)
-      let blocks = (0..<blockCount).map { idx in
-        Cauchy256.Block(data: idx == missingIndex ? nil : dataBlocks[idx], row: UInt8(idx))
-      }
-      let result = try Cauchy256.decode(blocks: blocks + recoveryBlocks, recoveryBlockCount: Int32(recoveryCount))
+      blocks[missingIndex].data = nil
+      let result = try Cauchy256.decode(blocks: blocks, recoveryBlockCount: Int32(recoveryCount))
       #expect(source == result)
     }
   }
@@ -155,17 +133,12 @@ import Testing
   let source = Data.random(size: 1024)
   let dataBlocks = generateDataBlocks(from: source, blockSize: 128)
 
-  let recoveryBlocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
-
-  // All source blocks are lost
-  let convertedBlocks = dataBlocks.enumerated().map { idx, blockData in
-    Cauchy256.Block(data: nil, row: UInt8(idx))
-  }
-
+  var blocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: 2)
+  for idx in 0..<dataBlocks.count { blocks[idx].data = nil }
   #expect(throws: LonghairError.notEnoughtBlocksToDecode) {
     try Cauchy256.decode(
-      blocks: convertedBlocks + recoveryBlocks,
-      recoveryBlockCount: Int32(recoveryBlocks.count)
+      blocks: blocks,
+      recoveryBlockCount: 2
     )
   }
 }
