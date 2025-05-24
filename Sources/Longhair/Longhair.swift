@@ -132,18 +132,17 @@ public enum Cauchy256 {
   public static func decode(blocks: [Block], recoveryBlockCount: Int32) throws -> Data {
     _ = _initializer
 
-    let m = recoveryBlockCount
     let total = blocks.count
-    let k = Int32(total) - m
-    guard k > 0 else { throw LonghairError.invalidBlockCount }
-    guard m >= 0 else { throw LonghairError.invalidBlockCount }
-    guard total == Int(k) + Int(m) else { throw LonghairError.invalidBlockCount }
-    guard k + m <= 256 else { throw LonghairError.invalidBlockCount }
+    let originalBlockCount = Int32(total) - recoveryBlockCount
+    guard originalBlockCount > 0 else { throw LonghairError.invalidBlockCount }
+    guard recoveryBlockCount >= 0 else { throw LonghairError.invalidBlockCount }
+    guard total == Int(originalBlockCount) + Int(recoveryBlockCount) else { throw LonghairError.invalidBlockCount }
+    guard originalBlockCount + recoveryBlockCount <= 256 else { throw LonghairError.invalidBlockCount }
 
     guard let firstData = blocks.first(where: { $0.data != nil })?.data else {
       throw LonghairError.noBlocksContainData
     }
-    guard blocks.count(where: { $0.data != nil }) >= Int(k) else {
+    guard blocks.count(where: { $0.data != nil }) >= Int(originalBlockCount) else {
       throw LonghairError.notEnoughtBlocksToDecode
     }
     let bytesPerBlock = firstData.count
@@ -152,7 +151,7 @@ public enum Cauchy256 {
       throw LonghairError.inconsistentBlockSizes
     }
 
-    let blockCount = Int(k)
+    let blockCount = Int(originalBlockCount)
     var cBlocks = [CLonghair.Block](repeating: .init(data: nil, row: 0), count: blockCount)
     var originalCount = 0
     var recoveryCount = 0
@@ -162,12 +161,12 @@ public enum Cauchy256 {
       let basePtr = rawBuffer.baseAddress!.assumingMemoryBound(to: UInt8.self)
 
       for block in blocks {
-        if let data = block.data, block.row < UInt8(k) {
+        if let data = block.data, block.row < UInt8(originalBlockCount) {
           let dest = basePtr.advanced(by: originalCount * bytesPerBlock)
           data.copyBytes(to: dest, count: bytesPerBlock)
           cBlocks[originalCount] = CLonghair.Block(data: dest, row: block.row)
           originalCount += 1
-        } else if let data = block.data, block.row >= UInt8(k), recoveryCount < Int(m) {
+        } else if let data = block.data, block.row >= UInt8(originalBlockCount), recoveryCount < Int(recoveryBlockCount) {
           recoveryCount += 1
           let dest = basePtr.advanced(by: (blockCount - recoveryCount) * bytesPerBlock)
           data.copyBytes(to: dest, count: bytesPerBlock)
@@ -177,8 +176,8 @@ public enum Cauchy256 {
 
       return cBlocks.withUnsafeMutableBufferPointer { ptr in
         cauchy_256_decode(
-          k,
-          m,
+          originalBlockCount,
+          recoveryBlockCount,
           ptr.baseAddress!,
           Int32(bytesPerBlock)
         )
@@ -189,8 +188,8 @@ public enum Cauchy256 {
     }
 
     var output = Data()
-    output.reserveCapacity(Int(k) * bytesPerBlock)
-    for originalRow in 0..<Int(k) {
+    output.reserveCapacity(Int(originalBlockCount) * bytesPerBlock)
+    for originalRow in 0..<Int(originalBlockCount) {
       let idx = cBlocks.firstIndex(where: { $0.row == UInt8(originalRow) })!
       let start = idx * bytesPerBlock
       output.append(blockData.subdata(in: start ..< start + bytesPerBlock))
