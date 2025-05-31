@@ -152,23 +152,30 @@ public enum Cauchy256 {
     }
 
     let blockCount = Int(originalBlockCount)
+    // Create an array of CLonghair.Block for the C API
     var cBlocks = [CLonghair.Block](repeating: .init(data: nil, row: 0), count: blockCount)
     var originalCount = 0
     var recoveryCount = 0
-    var blockData = Data(count: blockCount * bytesPerBlock)
+    
+    // Allocate a buffer to hold the block data, each cBlock points to a slice of this buffer
+    var blocksBuffer = Data(count: blockCount * bytesPerBlock)
 
-    let result: Int32 = blockData.withUnsafeMutableBytes { rawBuffer in
-      let basePtr = rawBuffer.baseAddress!.assumingMemoryBound(to: UInt8.self)
+    let result: Int32 = blocksBuffer.withUnsafeMutableBytes { blocksBufferPointer in
+      let blocksBufferPointer = blocksBufferPointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
 
       for block in blocks {
         if let data = block.data, block.row < UInt8(originalBlockCount) {
-          let dest = basePtr.advanced(by: originalCount * bytesPerBlock)
+          // This is an original data block
+          // Fill from the start of the buffer
+          let dest = blocksBufferPointer.advanced(by: originalCount * bytesPerBlock)
           data.copyBytes(to: dest, count: bytesPerBlock)
           cBlocks[originalCount] = CLonghair.Block(data: dest, row: block.row)
           originalCount += 1
         } else if let data = block.data, block.row >= UInt8(originalBlockCount), recoveryCount < Int(recoveryBlockCount) {
+          // This is a recovery block
+          // Fill from the end of the buffer
           recoveryCount += 1
-          let dest = basePtr.advanced(by: (blockCount - recoveryCount) * bytesPerBlock)
+          let dest = blocksBufferPointer.advanced(by: (blockCount - recoveryCount) * bytesPerBlock)
           data.copyBytes(to: dest, count: bytesPerBlock)
           cBlocks[blockCount - recoveryCount] = CLonghair.Block(data: dest, row: block.row)
         }
@@ -192,7 +199,7 @@ public enum Cauchy256 {
     for originalRow in 0..<Int(originalBlockCount) {
       let idx = cBlocks.firstIndex(where: { $0.row == UInt8(originalRow) })!
       let start = idx * bytesPerBlock
-      output.append(blockData.subdata(in: start ..< start + bytesPerBlock))
+      output.append(blocksBuffer.subdata(in: start ..< start + bytesPerBlock))
     }
     return output
   }
