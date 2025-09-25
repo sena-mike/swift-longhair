@@ -32,18 +32,18 @@ public enum Cauchy256 {
   ///   - row: The row index of the block. For original data blocks, this is their position in the input array.
   ///          For recovery blocks, this starts at the index immediately following the last data block.
   public struct Block {
-      public var data: Data?
-      public var row: UInt8
+    public var data: Data?
+    public var row: UInt8
 
-      /// Initializes a new `Block` instance.
-      ///
-      /// - Parameters:
-      ///   - data: The data for the block. Defaults to `nil` if the block is empty or missing.
-      ///   - row: The row index of the block.
-      public init(data: Data? = nil, row: UInt8) {
-          self.data = data
-          self.row = row
-      }
+    /// Initializes a new `Block` instance.
+    ///
+    /// - Parameters:
+    ///   - data: The data for the block. Defaults to `nil` if the block is empty or missing.
+    ///   - row: The row index of the block.
+    public init(data: Data? = nil, row: UInt8) {
+      self.data = data
+      self.row = row
+    }
   }
 
   /// This closure will run exactly once, the first time _initializer is touched.
@@ -76,7 +76,9 @@ public enum Cauchy256 {
 
     let bytesPerBlock = dataBlocks[0].count
     guard bytesPerBlock % 8 == 0 else { throw LonghairError.invalidBlockSize }
-    guard dataBlocks.allSatisfy({ $0.count == bytesPerBlock }) else { throw LonghairError.inconsistentBlockSizes }
+    guard dataBlocks.allSatisfy({ $0.count == bytesPerBlock }) else {
+      throw LonghairError.inconsistentBlockSizes
+    }
 
     // Allocate recovery blocks
     var recoveryBuffer = Data(count: recoveryBlockCount * bytesPerBlock)
@@ -109,7 +111,7 @@ public enum Cauchy256 {
 
     let recoveryBlocks = (0..<recoveryBlockCount).map { blockIndex in
       let data = recoveryBuffer.subdata(
-        in: blockIndex * bytesPerBlock ..< (blockIndex + 1) * bytesPerBlock
+        in: blockIndex * bytesPerBlock..<(blockIndex + 1) * bytesPerBlock
       )
       return Block(data: data, row: UInt8(dataBlocks.count) + UInt8(blockIndex))
     }
@@ -136,8 +138,12 @@ public enum Cauchy256 {
     let originalBlockCount = Int32(total) - recoveryBlockCount
     guard originalBlockCount > 0 else { throw LonghairError.invalidBlockCount }
     guard recoveryBlockCount >= 0 else { throw LonghairError.invalidBlockCount }
-    guard total == Int(originalBlockCount) + Int(recoveryBlockCount) else { throw LonghairError.invalidBlockCount }
-    guard originalBlockCount + recoveryBlockCount <= 256 else { throw LonghairError.invalidBlockCount }
+    guard total == Int(originalBlockCount) + Int(recoveryBlockCount) else {
+      throw LonghairError.invalidBlockCount
+    }
+    guard originalBlockCount + recoveryBlockCount <= 256 else {
+      throw LonghairError.invalidBlockCount
+    }
 
     guard let firstData = blocks.first(where: { $0.data != nil })?.data else {
       throw LonghairError.noBlocksContainData
@@ -156,7 +162,7 @@ public enum Cauchy256 {
     var cBlocks = [CLonghair.Block](repeating: .init(data: nil, row: 0), count: blockCount)
     var originalCount = 0
     var recoveryCount = 0
-    
+
     // Allocate a buffer to hold the block data, each cBlock points to a slice of this buffer
     var blocksBuffer = Data(count: blockCount * bytesPerBlock)
 
@@ -171,7 +177,9 @@ public enum Cauchy256 {
           data.copyBytes(to: dest, count: bytesPerBlock)
           cBlocks[originalCount] = CLonghair.Block(data: dest, row: block.row)
           originalCount += 1
-        } else if let data = block.data, block.row >= UInt8(originalBlockCount), recoveryCount < Int(recoveryBlockCount) {
+        } else if let data = block.data, block.row >= UInt8(originalBlockCount),
+          recoveryCount < Int(recoveryBlockCount)
+        {
           // This is a recovery block
           // Fill from the end of the buffer
           recoveryCount += 1
@@ -199,7 +207,7 @@ public enum Cauchy256 {
     for originalRow in 0..<Int(originalBlockCount) {
       let idx = cBlocks.firstIndex(where: { $0.row == UInt8(originalRow) })!
       let start = idx * bytesPerBlock
-      output.append(blocksBuffer.subdata(in: start ..< start + bytesPerBlock))
+      output.append(blocksBuffer.subdata(in: start..<start + bytesPerBlock))
     }
     return output
   }

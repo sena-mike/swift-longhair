@@ -1,6 +1,6 @@
 import CLonghair
-import Longhair
 import Foundation
+import Longhair
 import Testing
 
 @Test func verifyAPICompat() throws {
@@ -74,7 +74,8 @@ import Testing
     dataBlocks.append(source[start..<end])
   }
 
-  let encodedBlocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: recoveryCount)
+  let encodedBlocks = try Cauchy256.encode(
+    dataBlocks: dataBlocks, recoveryBlockCount: recoveryCount)
   for missingIndex in 0..<blockCount {
     var blocks = encodedBlocks
     blocks[missingIndex].data = nil
