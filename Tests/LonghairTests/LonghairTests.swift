@@ -107,27 +107,69 @@ import Testing
 
 @Test func stressDecodeRepeatedMemoryLeakTest() throws {
   for _ in 0..<1_000 {
+#if canImport(Darwin)
     try autoreleasepool {
-      let blockCount = 8
-      let recoveryCount = 2
-      let bytesPerBlock = 128
-      let totalBytes = blockCount * bytesPerBlock
-      let source = Data((0..<totalBytes).map { UInt8($0 & 0xFF) })
-      var dataBlocks = [Data]()
-      for i in stride(from: 0, to: source.count, by: bytesPerBlock) {
-        let start = source.index(source.startIndex, offsetBy: i)
-        let end = source.index(source.startIndex, offsetBy: i + bytesPerBlock)
-        dataBlocks.append(source[start..<end])
-      }
-
-      var blocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: recoveryCount)
-      let missingIndex = Int.random(in: 0..<blockCount)
-      blocks[missingIndex].data = nil
-      let result = try Cauchy256.decode(blocks: blocks, recoveryBlockCount: Int32(recoveryCount))
-      #expect(source == result)
+      try runStressDecodeIteration()
     }
+#else
+    try runStressDecodeIteration()
+#endif
   }
 }
+
+private func runStressDecodeIteration() throws {
+  let blockCount = 8
+  let recoveryCount = 2
+  let bytesPerBlock = 128
+  let totalBytes = blockCount * bytesPerBlock
+  let source = Data((0..<totalBytes).map { UInt8($0 & 0xFF) })
+  var dataBlocks = [Data]()
+  for i in stride(from: 0, to: source.count, by: bytesPerBlock) {
+    let start = source.index(source.startIndex, offsetBy: i)
+    let end = source.index(source.startIndex, offsetBy: i + bytesPerBlock)
+    dataBlocks.append(source[start..<end])
+  }
+
+  var blocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: recoveryCount)
+  let missingIndex = Int.random(in: 0..<blockCount)
+  blocks[missingIndex].data = nil
+  let result = try Cauchy256.decode(blocks: blocks, recoveryBlockCount: Int32(recoveryCount))
+  #expect(source == result)
+}
+
+
+#if os(Linux)
+@Test func stressDecodeMemoryGrowthRemainsBoundedOnLinux() throws {
+  for _ in 0..<200 {
+    try runStressDecodeIteration()
+  }
+
+  let startRSS = try currentResidentMemoryBytesLinux()
+
+  for _ in 0..<4_000 {
+    try runStressDecodeIteration()
+  }
+
+  let endRSS = try currentResidentMemoryBytesLinux()
+  let growth = endRSS - startRSS
+  let maxAllowedGrowth = 64 * 1024 * 1024
+  #expect(growth < maxAllowedGrowth)
+}
+
+private func currentResidentMemoryBytesLinux() throws -> Int {
+  let status = try String(contentsOfFile: "/proc/self/status", encoding: .utf8)
+  guard let vmRSSLine = status.split(separator: "\n").first(where: { $0.hasPrefix("VmRSS:") }) else {
+    throw LonghairError.invalidBlockCount
+  }
+
+  let fields = vmRSSLine.split(whereSeparator: { $0 == " " || $0 == "\t" })
+  guard fields.count >= 2, let rssInKB = Int(fields[1]) else {
+    throw LonghairError.invalidBlockCount
+  }
+
+  return rssInKB * 1024
+}
+#endif
 
 @Test func testDecodingFailed() throws {
   let source = Data.random(size: 1024)
