@@ -3,15 +3,6 @@ import Longhair
 import Foundation
 import Testing
 
-@inline(__always)
-private func withAutoreleasePool<T>(_ body: () throws -> T) rethrows -> T {
-#if canImport(Darwin)
-  return try autoreleasepool(invoking: body)
-#else
-  return try body()
-#endif
-}
-
 @Test func verifyAPICompat() throws {
   print("CAUCHY_256_VERSION: \(CAUCHY_256_VERSION)")
   if _cauchy_256_init(CAUCHY_256_VERSION) != 0 {
@@ -116,26 +107,34 @@ private func withAutoreleasePool<T>(_ body: () throws -> T) rethrows -> T {
 
 @Test func stressDecodeRepeatedMemoryLeakTest() throws {
   for _ in 0..<1_000 {
-    try withAutoreleasePool {
-      let blockCount = 8
-      let recoveryCount = 2
-      let bytesPerBlock = 128
-      let totalBytes = blockCount * bytesPerBlock
-      let source = Data((0..<totalBytes).map { UInt8($0 & 0xFF) })
-      var dataBlocks = [Data]()
-      for i in stride(from: 0, to: source.count, by: bytesPerBlock) {
-        let start = source.index(source.startIndex, offsetBy: i)
-        let end = source.index(source.startIndex, offsetBy: i + bytesPerBlock)
-        dataBlocks.append(source[start..<end])
-      }
-
-      var blocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: recoveryCount)
-      let missingIndex = Int.random(in: 0..<blockCount)
-      blocks[missingIndex].data = nil
-      let result = try Cauchy256.decode(blocks: blocks, recoveryBlockCount: Int32(recoveryCount))
-      #expect(source == result)
+#if canImport(Darwin)
+    try autoreleasepool {
+      try runStressDecodeIteration()
     }
+#else
+    try runStressDecodeIteration()
+#endif
   }
+}
+
+private func runStressDecodeIteration() throws {
+  let blockCount = 8
+  let recoveryCount = 2
+  let bytesPerBlock = 128
+  let totalBytes = blockCount * bytesPerBlock
+  let source = Data((0..<totalBytes).map { UInt8($0 & 0xFF) })
+  var dataBlocks = [Data]()
+  for i in stride(from: 0, to: source.count, by: bytesPerBlock) {
+    let start = source.index(source.startIndex, offsetBy: i)
+    let end = source.index(source.startIndex, offsetBy: i + bytesPerBlock)
+    dataBlocks.append(source[start..<end])
+  }
+
+  var blocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: recoveryCount)
+  let missingIndex = Int.random(in: 0..<blockCount)
+  blocks[missingIndex].data = nil
+  let result = try Cauchy256.decode(blocks: blocks, recoveryBlockCount: Int32(recoveryCount))
+  #expect(source == result)
 }
 
 @Test func testDecodingFailed() throws {
