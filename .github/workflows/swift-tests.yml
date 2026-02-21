@@ -46,5 +46,8 @@ jobs:
       - name: Verify Swift version
         run: swift --version
 
+      - name: Sync CLonghair overlay files
+        run: ./scripts/sync-clonghair-overlay.sh
+
       - name: Run tests
         run: swift test

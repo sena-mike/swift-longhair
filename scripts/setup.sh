@@ -7,3 +7,4 @@ cd "$ROOT_DIR"
 git submodule update --init --recursive
 
 echo "Submodules are initialized."
+./scripts/sync-clonghair-overlay.sh

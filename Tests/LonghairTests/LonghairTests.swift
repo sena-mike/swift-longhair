@@ -5,7 +5,7 @@ import Testing
 
 @Test func verifyAPICompat() throws {
   print("CAUCHY_256_VERSION: \(CAUCHY_256_VERSION)")
-  if _cauchy_256_init(CAUCHY_256_VERSION) != 0 {
+  if cauchy256Initialize(expectedVersion: CAUCHY_256_VERSION) != 0 {
     Issue.record("Cauchy 256 init failed")
   }
 }

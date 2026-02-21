@@ -48,8 +48,8 @@ public enum Cauchy256 {
 
   /// This closure will run exactly once, the first time _initializer is touched.
   private static let _initializer: Void = {
-    precondition(_cauchy_256_init(CAUCHY_256_VERSION) == 0)
-    precondition(gf256_init_(GF256_VERSION) == 0)
+    precondition(cauchy256Initialize(expectedVersion: CAUCHY_256_VERSION) == 0)
+    precondition(gf256Initialize(version: GF256_VERSION) == 0)
   }()
 
   /// Encodes the given data blocks and generates recovery blocks using the Cauchy 256 algorithm.
@@ -91,12 +91,12 @@ public enum Cauchy256 {
 
     let result = dataBlockPointers.withUnsafeMutableBufferPointer { pointerArray in
       recoveryBuffer.withUnsafeMutableBytes { recoveryRawBuffer in
-        return cauchy_256_encode(
-          Int32(dataBlocks.count),
-          Int32(recoveryBlockCount),
-          pointerArray.baseAddress!,
-          recoveryRawBuffer.baseAddress!,
-          Int32(bytesPerBlock)
+        return cauchy256Encode(
+          dataBlockCount: Int32(dataBlocks.count),
+          recoveryBlockCount: Int32(recoveryBlockCount),
+          dataBlockPointers: pointerArray.baseAddress!,
+          recoveryBlocks: recoveryRawBuffer.baseAddress!,
+          bytesPerBlock: Int32(bytesPerBlock)
         )
       }
     }
@@ -190,11 +190,11 @@ public enum Cauchy256 {
       }
 
       return cBlocks.withUnsafeMutableBufferPointer { ptr in
-        cauchy_256_decode(
-          originalBlockCount,
-          recoveryBlockCount,
-          ptr.baseAddress!,
-          Int32(bytesPerBlock)
+        cauchy256Decode(
+          dataBlockCount: originalBlockCount,
+          recoveryBlockCount: recoveryBlockCount,
+          blocks: ptr.baseAddress!,
+          bytesPerBlock: Int32(bytesPerBlock)
         )
       }
     }

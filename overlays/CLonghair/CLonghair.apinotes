@@ -1,0 +1,10 @@
+Name: CLonghair
+Functions:
+  - Name: _cauchy_256_init
+    SwiftName: cauchy256Initialize(expectedVersion:)
+  - Name: cauchy_256_encode
+    SwiftName: cauchy256Encode(dataBlockCount:recoveryBlockCount:dataBlockPointers:recoveryBlocks:bytesPerBlock:)
+  - Name: cauchy_256_decode
+    SwiftName: cauchy256Decode(dataBlockCount:recoveryBlockCount:blocks:bytesPerBlock:)
+  - Name: gf256_init_
+    SwiftName: gf256Initialize(version:)
