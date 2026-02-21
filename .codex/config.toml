@@ -1,0 +1,3 @@
+# Codex hook: auto-format changed Swift files after edits.
+# The hook script no-ops if no .swift files are currently modified.
+after_edit = ["./.codex/hooks/format-swift-files.sh"]

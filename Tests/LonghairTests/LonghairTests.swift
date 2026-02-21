@@ -1,6 +1,6 @@
 import CLonghair
-import Longhair
 import Foundation
+import Longhair
 import Testing
 
 @Test func verifyAPICompat() throws {
@@ -74,7 +74,8 @@ import Testing
     dataBlocks.append(source[start..<end])
   }
 
-  let encodedBlocks = try Cauchy256.encode(dataBlocks: dataBlocks, recoveryBlockCount: recoveryCount)
+  let encodedBlocks = try Cauchy256.encode(
+    dataBlocks: dataBlocks, recoveryBlockCount: recoveryCount)
   for missingIndex in 0..<blockCount {
     var blocks = encodedBlocks
     blocks[missingIndex].data = nil
@@ -107,13 +108,13 @@ import Testing
 
 @Test func stressDecodeRepeatedMemoryLeakTest() throws {
   for _ in 0..<1_000 {
-#if canImport(Darwin)
-    try autoreleasepool {
+    #if canImport(Darwin)
+      try autoreleasepool {
+        try runStressDecodeIteration()
+      }
+    #else
       try runStressDecodeIteration()
-    }
-#else
-    try runStressDecodeIteration()
-#endif
+    #endif
   }
 }
 
@@ -137,38 +138,38 @@ private func runStressDecodeIteration() throws {
   #expect(source == result)
 }
 
-
 #if os(Linux)
-@Test func stressDecodeMemoryGrowthRemainsBoundedOnLinux() throws {
-  for _ in 0..<200 {
-    try runStressDecodeIteration()
+  @Test func stressDecodeMemoryGrowthRemainsBoundedOnLinux() throws {
+    for _ in 0..<200 {
+      try runStressDecodeIteration()
+    }
+
+    let startRSS = try currentResidentMemoryBytesLinux()
+
+    for _ in 0..<4_000 {
+      try runStressDecodeIteration()
+    }
+
+    let endRSS = try currentResidentMemoryBytesLinux()
+    let growth = endRSS - startRSS
+    let maxAllowedGrowth = 64 * 1024 * 1024
+    #expect(growth < maxAllowedGrowth)
   }
 
-  let startRSS = try currentResidentMemoryBytesLinux()
+  private func currentResidentMemoryBytesLinux() throws -> Int {
+    let status = try String(contentsOfFile: "/proc/self/status", encoding: .utf8)
+    guard let vmRSSLine = status.split(separator: "\n").first(where: { $0.hasPrefix("VmRSS:") })
+    else {
+      throw LonghairError.invalidBlockCount
+    }
 
-  for _ in 0..<4_000 {
-    try runStressDecodeIteration()
+    let fields = vmRSSLine.split(whereSeparator: { $0 == " " || $0 == "\t" })
+    guard fields.count >= 2, let rssInKB = Int(fields[1]) else {
+      throw LonghairError.invalidBlockCount
+    }
+
+    return rssInKB * 1024
   }
-
-  let endRSS = try currentResidentMemoryBytesLinux()
-  let growth = endRSS - startRSS
-  let maxAllowedGrowth = 64 * 1024 * 1024
-  #expect(growth < maxAllowedGrowth)
-}
-
-private func currentResidentMemoryBytesLinux() throws -> Int {
-  let status = try String(contentsOfFile: "/proc/self/status", encoding: .utf8)
-  guard let vmRSSLine = status.split(separator: "\n").first(where: { $0.hasPrefix("VmRSS:") }) else {
-    throw LonghairError.invalidBlockCount
-  }
-
-  let fields = vmRSSLine.split(whereSeparator: { $0 == " " || $0 == "\t" })
-  guard fields.count >= 2, let rssInKB = Int(fields[1]) else {
-    throw LonghairError.invalidBlockCount
-  }
-
-  return rssInKB * 1024
-}
 #endif
 
 @Test func testDecodingFailed() throws {
