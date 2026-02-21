@@ -137,6 +137,40 @@ private func runStressDecodeIteration() throws {
   #expect(source == result)
 }
 
+
+#if os(Linux)
+@Test func stressDecodeMemoryGrowthRemainsBoundedOnLinux() throws {
+  for _ in 0..<200 {
+    try runStressDecodeIteration()
+  }
+
+  let startRSS = try currentResidentMemoryBytesLinux()
+
+  for _ in 0..<4_000 {
+    try runStressDecodeIteration()
+  }
+
+  let endRSS = try currentResidentMemoryBytesLinux()
+  let growth = endRSS - startRSS
+  let maxAllowedGrowth = 64 * 1024 * 1024
+  #expect(growth < maxAllowedGrowth)
+}
+
+private func currentResidentMemoryBytesLinux() throws -> Int {
+  let status = try String(contentsOfFile: "/proc/self/status", encoding: .utf8)
+  guard let vmRSSLine = status.split(separator: "\n").first(where: { $0.hasPrefix("VmRSS:") }) else {
+    throw LonghairError.invalidBlockCount
+  }
+
+  let fields = vmRSSLine.split(whereSeparator: { $0 == " " || $0 == "\t" })
+  guard fields.count >= 2, let rssInKB = Int(fields[1]) else {
+    throw LonghairError.invalidBlockCount
+  }
+
+  return rssInKB * 1024
+}
+#endif
+
 @Test func testDecodingFailed() throws {
   let source = Data.random(size: 1024)
   let dataBlocks = generateDataBlocks(from: source, blockSize: 128)
