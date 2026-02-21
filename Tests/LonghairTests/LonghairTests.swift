@@ -3,6 +3,15 @@ import Longhair
 import Foundation
 import Testing
 
+@inline(__always)
+private func withAutoreleasePool<T>(_ body: () throws -> T) rethrows -> T {
+#if canImport(Darwin)
+  return try autoreleasepool(invoking: body)
+#else
+  return try body()
+#endif
+}
+
 @Test func verifyAPICompat() throws {
   print("CAUCHY_256_VERSION: \(CAUCHY_256_VERSION)")
   if _cauchy_256_init(CAUCHY_256_VERSION) != 0 {
@@ -107,7 +116,7 @@ import Testing
 
 @Test func stressDecodeRepeatedMemoryLeakTest() throws {
   for _ in 0..<1_000 {
-    try autoreleasepool {
+    try withAutoreleasePool {
       let blockCount = 8
       let recoveryCount = 2
       let bytesPerBlock = 128
