@@ -14,7 +14,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: true
 
       - name: Set up Swift
         uses: swift-actions/setup-swift@v2
@@ -23,9 +23,6 @@ jobs:
 
       - name: Verify Swift version
         run: swift --version
-
-      - name: Initialize submodules
-        run: bash scripts/setup.sh
 
       - name: Run tests
         run: swift test
