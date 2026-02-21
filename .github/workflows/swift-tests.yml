@@ -1,14 +1,36 @@
 name: Swift Tests
 
 on:
+  pull_request:
   push:
     branches:
-      - '**'
-  pull_request:
+      - main
+  workflow_dispatch:
 
 jobs:
+  formatting:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Set up Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: '6.0'
+
+      - name: Verify formatting
+        run: scripts/swift-style.sh check
+
+      - name: Lint Swift files
+        run: scripts/swift-style.sh lint
+
   test:
     runs-on: ubuntu-latest
+    needs: formatting
 
     steps:
       - name: Checkout
