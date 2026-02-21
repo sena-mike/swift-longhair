@@ -7,3 +7,12 @@ A Swift Package Wrapper around [Longhair](https://github.com/catid/longhair) for
 1. Add this package to your Xcode project by going to `File` > `Add Packages...` and entering the URL of this repository.
 2. In Xcode project settings pre-processor macros for your target, add `GF256_TARGET_MOBILE=1`.
 
+
+## Setup
+
+Run the setup script to initialize the Longhair submodule:
+
+```bash
+./scripts/setup.sh
+```
+
