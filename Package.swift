@@ -36,5 +36,5 @@ let package = Package(
         cxxSettings: longhairCxxSettings,
         swiftSettings: [.interoperabilityMode(.Cxx)]
       ),
-    ],
+    ]
 )
