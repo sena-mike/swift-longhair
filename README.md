@@ -9,10 +9,16 @@ A Swift Package Wrapper around [Longhair](https://github.com/catid/longhair) for
 
 ## Setup
 
-Run the setup script to initialize the Longhair submodule:
+Run the setup script to initialize the Longhair submodule and apply local overlay files (`module.modulemap` and `CLonghair.apinotes`):
 
 ```bash
 ./scripts/setup.sh
+```
+
+If you resync submodules later, re-apply overlays with:
+
+```bash
+./scripts/sync-clonghair-overlay.sh
 ```
 
 ## Style checks

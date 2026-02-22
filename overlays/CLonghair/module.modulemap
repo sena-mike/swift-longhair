@@ -1,0 +1,5 @@
+module CLonghair {
+  header "cauchy_256.h"
+  header "gf256.h"
+  export *
+}
